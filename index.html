@@ -610,6 +610,79 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   .reset-link button{
     background:none;border:none;color:var(--grey);font-size:0.78rem;text-decoration:underline;cursor:pointer;
   }
+
+  /* ---- View-switcher tabs ---- */
+  .view-tabs{
+    display:flex;gap:6px;margin-bottom:14px;
+    background:#fff;border:1px solid var(--border);border-radius:10px;padding:4px;
+  }
+  .view-tab{
+    flex:1;background:none;border:none;padding:11px 8px;border-radius:7px;
+    font-size:0.9rem;font-weight:600;color:var(--grey);cursor:pointer;font-family:inherit;
+  }
+  .view-tab.active{background:var(--navy);color:#fff;}
+
+  /* ---- Maintenance (snag) list tab ---- */
+  .sheet-link-row{margin:0 0 14px;font-size:0.82rem;}
+  .sheet-link-row a{color:var(--navy);font-weight:600;}
+  .card-header.snag-refresh-row{
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  button.header-link{
+    background:none;border:none;color:#fff;font-size:0.8rem;font-weight:600;
+    text-decoration:underline;cursor:pointer;font-family:inherit;padding:0;
+  }
+  .snag-status{font-size:0.87rem;color:var(--grey);padding:12px 2px;text-align:center;}
+  .snag-status.error{color:var(--red);}
+  .snag-group{margin-bottom:16px;}
+  .snag-group:last-child{margin-bottom:0;}
+  .snag-group-head{
+    font-size:0.76rem;font-weight:700;color:var(--navy);letter-spacing:.03em;
+    text-transform:uppercase;margin:0 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border);
+  }
+  .snag-subgroup-head{
+    font-size:0.72rem;font-weight:700;color:var(--grey);letter-spacing:.02em;
+    margin:2px 0 8px;padding-left:2px;
+  }
+  .snag-item{
+    border:1px solid var(--border);border-radius:8px;padding:12px;
+    margin-bottom:10px;background:#fafbfc;
+  }
+  .snag-item:last-child{margin-bottom:0;}
+  .snag-item-desc{font-size:0.9rem;font-weight:600;line-height:1.35;margin-bottom:8px;}
+  .snag-note{
+    width:100%;min-height:40px;resize:vertical;padding:8px 10px;
+    border:1px solid var(--border);border-radius:6px;font-size:0.88rem;font-family:inherit;background:#fff;
+  }
+  .snag-note-label{display:block;font-size:0.72rem;color:var(--grey);margin-bottom:4px;}
+  .snag-item-foot{
+    display:flex;justify-content:space-between;align-items:center;
+    gap:10px;margin-top:10px;flex-wrap:wrap;
+  }
+  .snag-meta{font-size:0.74rem;color:var(--grey);line-height:1.3;}
+  button.resolve-btn{
+    background:var(--green);color:#fff;border:none;padding:9px 16px;border-radius:7px;
+    font-size:0.82rem;font-weight:700;cursor:pointer;white-space:nowrap;
+  }
+  button.resolve-btn:disabled{opacity:.6;cursor:wait;}
+  .snag-add-msg{font-size:0.82rem;margin:10px 0 0;text-align:center;min-height:1.1em;}
+  .snag-add-msg.ok{color:var(--green);}
+  .snag-add-msg.err{color:var(--red);}
+  details.resolved-wrap{
+    border:1px solid var(--border);border-radius:10px;background:#fff;
+    margin-bottom:14px;overflow:hidden;
+  }
+  details.resolved-wrap > summary{
+    list-style:none;cursor:pointer;padding:12px 14px;font-weight:600;font-size:0.9rem;color:var(--navy);
+  }
+  details.resolved-wrap > summary::-webkit-details-marker{display:none;}
+  details.resolved-wrap > summary::after{content:"▸";float:right;color:var(--grey);}
+  details.resolved-wrap[open] > summary::after{content:"▾";}
+  .resolved-body{padding:0 14px 12px;}
+  .snag-resolved-item{
+    font-size:0.82rem;color:var(--grey);padding:8px 0;border-bottom:1px solid #f1f2f4;line-height:1.4;
+  }
+  .snag-resolved-item:last-child{border-bottom:none;}
 </style>
 </head>
 <body>
@@ -619,6 +692,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <p>Tap through each building and studio · uncheck anything that's not OK · add notes where needed</p>
   </header>
 
+  <nav class="view-tabs">
+    <button type="button" class="view-tab active" id="tabChecklist" onclick="switchView('checklist')">Checklist</button>
+    <button type="button" class="view-tab" id="tabMaint" onclick="switchView('maint')">Maintenance List</button>
+  </nav>
+
+  <div id="checklistView">
   <div class="card">
     <div class="card-header">Week details</div>
     <div class="card-body info-grid">
@@ -676,6 +755,50 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   </div>
   <p class="foot-note">Downloads straight to your device — drag it into the shared Drive folder afterwards.</p>
   <div class="reset-link"><button onclick="resetForm()">Reset this week's form</button></div>
+  </div><!-- /#checklistView -->
+
+  <div id="maintListView" style="display:none;">
+    <p class="sheet-link-row" id="snagSheetLinkRow" style="display:none;">
+      <a id="snagSheetLink" href="#" target="_blank" rel="noopener">Open the full record in Google Sheets ↗</a>
+    </p>
+
+    <div class="card">
+      <div class="card-header">Add a maintenance item</div>
+      <div class="card-body">
+        <div class="field" style="margin-bottom:12px;">
+          <label for="snagLocation">Building / studio</label>
+          <select id="snagLocation"></select>
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+          <label for="snagItem">What needs doing</label>
+          <input type="text" id="snagItem" placeholder="e.g. Broken window latch in Studio 4">
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+          <label for="snagNotes">Notes (optional)</label>
+          <textarea id="snagNotes" style="min-height:44px;resize:vertical;" placeholder="Any extra detail..."></textarea>
+        </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label for="snagAddedBy">Added by</label>
+          <input type="text" id="snagAddedBy" placeholder="Your name">
+        </div>
+        <button class="generate" id="snagAddBtn" onclick="addSnagItem()">Add to list</button>
+        <p class="snag-add-msg" id="snagAddMsg"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header snag-refresh-row">
+        <span>Open items</span>
+        <button type="button" class="header-link" id="snagRefreshBtn" onclick="loadSnagList()">Refresh</button>
+      </div>
+      <div class="card-body" id="snagOpenContainer"></div>
+    </div>
+
+    <details class="resolved-wrap" id="snagResolvedWrap" style="display:none;">
+      <summary>Show resolved items</summary>
+      <div class="resolved-body" id="snagResolvedContainer"></div>
+    </details>
+  </div><!-- /#maintListView -->
 </div>
 
 <div class="modal-overlay" id="maintModal" onclick="if(event.target===this)closeMaintModal()">
@@ -1243,6 +1366,363 @@ function initPersistence(){
   window.addEventListener("pagehide", saveStateNow);
 }
 
+/* ===========================================================================
+   MAINTENANCE LIST TAB
+   A global, Google-Sheet-backed running snag list — completely separate from
+   the weekly checklist and its localStorage. The weekly "Reset" button never
+   touches this, and generating the PDF never touches this. Same integration
+   pattern as the Big Sky compliance app, but its OWN backend/sheet.
+=========================================================================== */
+const MAINT_API_URL = "https://script.google.com/macros/s/AKfycbxrsQpQjdGHinBpR1VJUID4hb25KyvhY9-5oK19sxLHT9euftRaoFfVXW2BiCP4Aovn/exec";
+// Paste the underlying Google Sheet's share URL here to show the
+// "open the full record" link at the top of the tab. Leave blank to hide it.
+const MAINT_SHEET_URL = "https://docs.google.com/spreadsheets/d/10921osaKOWh1_lFu7DbSwX9Hte5p0uvpKTr8bGG3fp8/edit?usp=sharing";
+
+// Which building each studio belongs to — studios 1–7 are in 29/31 Brewery Road,
+// studios 8–10 in 68/72. Buildings 64 and 30 are communal-only (no studios).
+// Labels match the BUILDINGS array so the add form + grouping stay consistent.
+const STUDIO_BUILDING = {};
+STUDIOS.forEach(s => { STUDIO_BUILDING[s] = (s <= 7) ? "29/31" : "68/72"; });
+
+let snagItems = null;    // null = loading / not yet fetched; [] = loaded/empty
+let snagError = false;
+let snagLoaded = false;  // has an initial fetch completed at least once?
+let currentView = "checklist";
+
+// Location options for the add form + display ordering — reuses the checklist's
+// own BUILDINGS / STUDIOS data so there's a single source of truth.
+function snagLocationOptions(){
+  return [
+    ...BUILDINGS.map(b => ({group:"Buildings & communal areas", building:b, space:"", label:b})),
+    ...STUDIOS.map(s => ({group:"Studios", building:STUDIO_BUILDING[s], space:"Studio " + s, label:"Studio " + s}))
+  ];
+}
+
+// Parse a studio number out of a space label ("Studio 4" -> 4), or null.
+function snagStudioNumber(space){
+  const m = /studio\s*(\d+)/i.exec(space == null ? "" : String(space));
+  return m ? Number(m[1]) : null;
+}
+
+// The building an item belongs to. Prefer the stored Building column; fall back
+// to the studio->building map so older rows (saved before both columns were
+// populated) still group correctly.
+function snagBuildingFor(it){
+  const b = (it.Building == null ? "" : it.Building).toString().trim();
+  if(b) return b;
+  const n = snagStudioNumber(it["Studio/Space"]);
+  if(n != null && STUDIO_BUILDING[n]) return STUDIO_BUILDING[n];
+  return "";
+}
+
+function snagEscape(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// A single human location label for an item: the studio/space if present,
+// otherwise the building.
+function snagLocationLabel(it){
+  const space = (it["Studio/Space"] == null ? "" : it["Studio/Space"]).toString().trim();
+  const building = (it.Building == null ? "" : it.Building).toString().trim();
+  return space || building || "Unassigned";
+}
+
+function fmtSnagDate(value){
+  if(!value) return "";
+  const d = new Date(value);
+  if(isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"});
+}
+
+function initMaintList(){
+  const sel = document.getElementById("snagLocation");
+  if(sel){
+    const opts = snagLocationOptions();
+    let html = "";
+    ["Buildings & communal areas", "Studios"].forEach(groupName => {
+      html += `<optgroup label="${snagEscape(groupName)}">`;
+      opts.forEach((o, idx) => {
+        if(o.group === groupName) html += `<option value="${idx}">${snagEscape(o.label)}</option>`;
+      });
+      html += `</optgroup>`;
+    });
+    sel.innerHTML = html;
+  }
+  if(MAINT_SHEET_URL){
+    const link = document.getElementById("snagSheetLink");
+    if(link){
+      link.href = MAINT_SHEET_URL;
+      document.getElementById("snagSheetLinkRow").style.display = "";
+    }
+  }
+}
+
+// Prefill "Added by" from the same "Completed by" name used on the checklist.
+function prefillAddedBy(){
+  const el = document.getElementById("snagAddedBy");
+  if(el && !el.value.trim()){
+    const cb = document.getElementById("completedBy");
+    const name = cb ? cb.value.trim() : "";
+    if(name) el.value = name;
+  }
+}
+
+function switchView(view){
+  currentView = view;
+  const isChecklist = view === "checklist";
+  document.getElementById("checklistView").style.display = isChecklist ? "" : "none";
+  document.getElementById("maintListView").style.display = isChecklist ? "none" : "";
+  document.getElementById("tabChecklist").classList.toggle("active", isChecklist);
+  document.getElementById("tabMaint").classList.toggle("active", !isChecklist);
+  window.scrollTo(0, 0);
+  if(!isChecklist){
+    prefillAddedBy();
+    if(!snagLoaded) loadSnagList();   // lazy first fetch
+  }
+}
+
+async function loadSnagList(){
+  snagItems = null;
+  snagError = false;
+  renderSnagList();
+  try {
+    const res = await fetch(MAINT_API_URL, {method:"GET"});
+    const data = await res.json();
+    snagItems = (data && Array.isArray(data.items)) ? data.items
+              : (Array.isArray(data) ? data : []);
+  } catch(e){
+    snagError = true;
+    snagItems = [];
+  }
+  snagLoaded = true;
+  renderSnagList();
+}
+
+// POST as a "simple" text/plain request so Apps Script doesn't trigger a CORS
+// preflight (same approach as the compliance app).
+function postSnag(payload){
+  return fetch(MAINT_API_URL, {
+    method:"POST",
+    headers:{"Content-Type":"text/plain;charset=utf-8"},
+    body: JSON.stringify(payload)
+  });
+}
+
+async function addSnagItem(){
+  const btn = document.getElementById("snagAddBtn");
+  const msg = document.getElementById("snagAddMsg");
+  const sel = document.getElementById("snagLocation");
+  const itemEl = document.getElementById("snagItem");
+  const notesEl = document.getElementById("snagNotes");
+  const addedByEl = document.getElementById("snagAddedBy");
+
+  const item = itemEl.value.trim();
+  if(!item){
+    msg.textContent = "Add a short description first.";
+    msg.className = "snag-add-msg err";
+    itemEl.focus();
+    return;
+  }
+  const opts = snagLocationOptions();
+  const loc = opts[Number(sel.value)] || opts[0];
+  const wantLabel = loc.space || loc.building;
+
+  const prevLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Adding…";
+  msg.textContent = "";
+  msg.className = "snag-add-msg";
+
+  // Best-effort POST, then reload from the sheet (the source of truth) and
+  // confirm the item actually landed — robust to any CORS response quirks.
+  try {
+    await postSnag({
+      action:"add",
+      building: loc.building,
+      space: loc.space,
+      item: item,
+      notes: notesEl.value.trim(),
+      addedBy: addedByEl.value.trim()
+    });
+  } catch(e){ /* verify via reload below */ }
+
+  await loadSnagList();
+  const landed = Array.isArray(snagItems) && snagItems.some(it =>
+    (it.Status || "Open") === "Open" &&
+    (it.Item || "").toString().trim() === item &&
+    snagLocationLabel(it) === wantLabel);
+
+  if(landed){
+    itemEl.value = "";
+    notesEl.value = "";
+    msg.textContent = "Added to the list ✓";
+    msg.className = "snag-add-msg ok";
+  } else {
+    msg.textContent = "Couldn't confirm it was added — check your connection and tap Refresh.";
+    msg.className = "snag-add-msg err";
+  }
+  btn.disabled = false;
+  btn.textContent = prevLabel;
+}
+
+function renderSnagList(){
+  renderSnagOpen();
+  renderSnagResolved();
+}
+
+function renderSnagOpen(){
+  const c = document.getElementById("snagOpenContainer");
+  if(!c) return;
+
+  if(snagItems === null){
+    c.innerHTML = `<div class="snag-status">Loading maintenance list…</div>`;
+    return;
+  }
+  if(snagError){
+    c.innerHTML = `<div class="snag-status error">Couldn't reach the maintenance list. Check your connection and tap Refresh.</div>`;
+    return;
+  }
+
+  const open = snagItems.filter(it => (it.Status || "Open") === "Open");
+  if(open.length === 0){
+    c.innerHTML = `<div class="snag-status">No open maintenance items.</div>`;
+    return;
+  }
+
+  // Nest by building, then by studio within each building (mirrors the weekly
+  // checklist's building sections containing studio sub-sections). Building-level
+  // / communal items (no studio) sit at the top of their building's group.
+  const groups = {}; // building -> { communal:[], studios:{ studioName:[] } }
+  open.forEach(it => {
+    const b = snagBuildingFor(it) || "Other";
+    const space = (it["Studio/Space"] == null ? "" : it["Studio/Space"]).toString().trim();
+    if(!groups[b]) groups[b] = { communal:[], studios:{} };
+    if(space){
+      (groups[b].studios[space] = groups[b].studios[space] || []).push(it);
+    } else {
+      groups[b].communal.push(it);
+    }
+  });
+
+  const orderedBuildings = [
+    ...BUILDINGS.filter(b => groups[b]),
+    ...Object.keys(groups).filter(b => !BUILDINGS.includes(b)).sort()
+  ];
+
+  c.innerHTML = "";
+  orderedBuildings.forEach(b => {
+    const grp = groups[b];
+    const total = grp.communal.length +
+      Object.values(grp.studios).reduce((n, arr) => n + arr.length, 0);
+
+    const section = document.createElement("div");
+    section.className = "snag-group";
+
+    const head = document.createElement("div");
+    head.className = "snag-group-head";
+    head.textContent = b + " · " + total;
+    section.appendChild(head);
+
+    // communal / building-level items first
+    grp.communal.forEach(it => section.appendChild(renderSnagItem(it)));
+
+    // then each studio sub-section, in numeric order
+    Object.keys(grp.studios).sort((x, y) => {
+      const nx = snagStudioNumber(x), ny = snagStudioNumber(y);
+      if(nx != null && ny != null) return nx - ny;
+      return x.localeCompare(y);
+    }).forEach(sn => {
+      const sub = document.createElement("div");
+      sub.className = "snag-subgroup-head";
+      sub.textContent = sn + " · " + grp.studios[sn].length;
+      section.appendChild(sub);
+      grp.studios[sn].forEach(it => section.appendChild(renderSnagItem(it)));
+    });
+
+    c.appendChild(section);
+  });
+}
+
+function renderSnagItem(it){
+  const wrap = document.createElement("div");
+  wrap.className = "snag-item";
+
+  const desc = document.createElement("div");
+  desc.className = "snag-item-desc";
+  desc.textContent = it.Item || "(no description)";
+  wrap.appendChild(desc);
+
+  const noteLabel = document.createElement("label");
+  noteLabel.className = "snag-note-label";
+  noteLabel.textContent = "Notes";
+  wrap.appendChild(noteLabel);
+
+  const ta = document.createElement("textarea");
+  ta.className = "snag-note";
+  ta.value = it.Notes || "";
+  ta.placeholder = "Add an update…";
+  let noteTimer = null;
+  ta.oninput = () => {
+    const val = ta.value;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => {
+      postSnag({action:"updateNotes", id: it.ID, notes: val}).catch(() => {});
+    }, 500);
+  };
+  wrap.appendChild(ta);
+
+  const foot = document.createElement("div");
+  foot.className = "snag-item-foot";
+
+  const meta = document.createElement("div");
+  meta.className = "snag-meta";
+  const who = (it.AddedBy == null ? "" : it.AddedBy).toString().trim();
+  const when = fmtSnagDate(it.Timestamp);
+  meta.textContent = [who ? "Added by " + who : "", when].filter(Boolean).join(" · ");
+  foot.appendChild(meta);
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "resolve-btn";
+  btn.textContent = "Resolved";
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = "…";
+    try { await postSnag({action:"resolve", id: it.ID}); } catch(e){ /* best effort */ }
+    // optimistic local update so it leaves the open list immediately
+    const found = Array.isArray(snagItems) ? snagItems.find(x => x.ID === it.ID) : null;
+    if(found){ found.Status = "Resolved"; found.ResolvedAt = new Date().toISOString(); }
+    renderSnagList();
+  };
+  foot.appendChild(btn);
+
+  wrap.appendChild(foot);
+  return wrap;
+}
+
+function renderSnagResolved(){
+  const wrap = document.getElementById("snagResolvedWrap");
+  const c = document.getElementById("snagResolvedContainer");
+  if(!wrap || !c) return;
+
+  const resolved = Array.isArray(snagItems)
+    ? snagItems.filter(it => (it.Status || "Open") !== "Open") : [];
+  if(resolved.length === 0){
+    wrap.style.display = "none";
+    wrap.open = false;
+    return;
+  }
+  wrap.style.display = "";
+  wrap.querySelector("summary").textContent = "Show resolved items (" + resolved.length + ")";
+  c.innerHTML = resolved.map(it => {
+    const loc = snagLocationLabel(it);
+    const when = fmtSnagDate(it.ResolvedAt) || fmtSnagDate(it.Timestamp);
+    const tail = snagEscape(loc) + (when ? " · resolved " + snagEscape(when) : "");
+    return `<div class="snag-resolved-item">${snagEscape(it.Item || "")} <span style="opacity:.75">— ${tail}</span></div>`;
+  }).join("");
+}
+
 // ---- Boot ----
 const savedState = loadState();
 
@@ -1262,6 +1742,7 @@ if(savedState){
   initDates();
 }
 initPersistence();
+initMaintList();
 </script>
 </body>
 </html>
