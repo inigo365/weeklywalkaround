@@ -501,6 +501,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     min-height:40px;
     max-width:100%;
     box-sizing:border-box;
+    -webkit-appearance:none;
+    appearance:none;
   }
   .field.readonly-ish input{background:#f9fafb;}
 
@@ -1626,6 +1628,17 @@ function initPersistence(){
     if(document.visibilityState === "hidden") saveStateNow();
   });
   window.addEventListener("pagehide", saveStateNow);
+
+  // Next walkaround due always follows Week commencing (a week later), so if
+  // you change the top date, this updates with it automatically. Date
+  // completed is deliberately left alone here — that one tracks the actual
+  // day you complete the form, not the week being recorded.
+  document.getElementById("weekCommencing").addEventListener("change", function(){
+    if(this.value){
+      document.getElementById("nextWalkaround").value = plusDaysISO(this.value, 7);
+      saveStateNow();
+    }
+  });
 }
 
 /* ===========================================================================
@@ -2019,6 +2032,16 @@ renderMaintRows();
 
 if(savedState){
   applyState(savedState);   // restore checkboxes, notes, header fields & dates
+  // If the saved state is from a previous week, bring the dates up to date
+  // automatically — checklist ticks/notes are left as-is (that's what the
+  // Reset button is for), this just stops "Week commencing" going stale.
+  const currentMonday = mondayISO();
+  if(document.getElementById("weekCommencing").value !== currentMonday){
+    document.getElementById("weekCommencing").value = currentMonday;
+    document.getElementById("nextWalkaround").value = plusDaysISO(currentMonday, 7);
+    document.getElementById("signDate").value = todayISO();
+    saveStateNow();
+  }
 } else {
   initDates();
 }
