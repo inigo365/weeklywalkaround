@@ -617,13 +617,24 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     background:var(--bg);border:1px solid var(--border);
     border-radius:8px;padding:12px;
   }
-  .modal-foot{padding:12px 16px;border-top:1px solid var(--border);}
+  .modal-textarea{
+    width:100%;min-height:220px;resize:vertical;
+    font-family:inherit;font-size:0.85rem;line-height:1.5;color:#111827;
+    background:var(--bg);border:1px solid var(--border);
+    border-radius:8px;padding:12px;box-sizing:border-box;
+  }
+  .report-status{font-size:0.82rem;margin:10px 0 0;min-height:1.2em;color:var(--grey);}
+  .report-status.ok{color:var(--green);font-weight:600;}
+  .report-status.err{color:var(--red);font-weight:600;}
+  .modal-foot{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;}
   button.copy-btn{
-    width:100%;background:var(--navy);color:#fff;border:none;
+    flex:1;background:#fff;color:var(--navy);border:1px solid var(--border);
     padding:12px;border-radius:9px;font-size:0.9rem;font-weight:700;cursor:pointer;
   }
-  button.copy-btn:hover{background:var(--navy-light);}
-  button.copy-btn.copied{background:var(--green);}
+  button.copy-btn:hover{background:var(--bg);}
+  button.copy-btn.copied{background:var(--green);color:#fff;border-color:var(--green);}
+  #sendReportBtn{flex:1.4;margin:0;}
+  #sendReportBtn:disabled{opacity:0.6;cursor:wait;}
 
   .foot-note{text-align:center;color:var(--grey);font-size:0.75rem;margin:10px 0 0;}
   .reset-link{
@@ -654,6 +665,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     background:none;border:none;color:#fff;font-size:0.8rem;font-weight:600;
     text-decoration:underline;cursor:pointer;font-family:inherit;padding:0;
   }
+  .header-actions{display:flex;align-items:center;gap:14px;}
+  button.header-add-btn{
+    background:rgba(255,255,255,0.15);border:none;color:#fff;
+    font-size:0.8rem;font-weight:700;font-family:inherit;cursor:pointer;
+    padding:4px 10px;border-radius:6px;line-height:1.4;
+  }
+  button.header-add-btn:hover{background:rgba(255,255,255,0.25);}
   .snag-status{font-size:0.87rem;color:var(--grey);padding:12px 2px;text-align:center;}
   .snag-status.error{color:var(--red);}
   .snag-group{margin-bottom:16px;}
@@ -790,6 +808,17 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </p>
 
     <div class="card">
+      <div class="card-header snag-refresh-row">
+        <span>Open items</span>
+        <div class="header-actions">
+          <button type="button" class="header-add-btn" id="snagAddToggleBtn" onclick="toggleSnagAddForm()">+ Add item</button>
+          <button type="button" class="header-link" id="snagRefreshBtn" onclick="loadSnagList()">Refresh</button>
+        </div>
+      </div>
+      <div class="card-body" id="snagOpenContainer"></div>
+    </div>
+
+    <div class="card" id="snagAddCard" style="display:none;">
       <div class="card-header">Add a maintenance item</div>
       <div class="card-body">
         <div class="field" style="margin-bottom:12px;">
@@ -813,14 +842,6 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header snag-refresh-row">
-        <span>Open items</span>
-        <button type="button" class="header-link" id="snagRefreshBtn" onclick="loadSnagList()">Refresh</button>
-      </div>
-      <div class="card-body" id="snagOpenContainer"></div>
-    </div>
-
     <details class="resolved-wrap" id="snagResolvedWrap" style="display:none;">
       <summary>Show resolved items</summary>
       <div class="resolved-body" id="snagResolvedContainer"></div>
@@ -831,14 +852,27 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <div class="modal-overlay" id="maintModal" onclick="if(event.target===this)closeMaintModal()">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="maintModalTitle">
     <div class="modal-head">
-      <h2 id="maintModalTitle">Maintenance items</h2>
+      <h2 id="maintModalTitle">Weekly report to facilities</h2>
       <button class="modal-close" aria-label="Close" onclick="closeMaintModal()">&times;</button>
     </div>
     <div class="modal-body">
-      <pre class="modal-list" id="maintListText"></pre>
+      <div class="field" style="margin-bottom:10px;">
+        <label for="reportTo">To</label>
+        <input type="email" id="reportTo">
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <label for="reportSubject">Subject</label>
+        <input type="text" id="reportSubject">
+      </div>
+      <div class="field">
+        <label for="reportBody">Message (edit before sending if needed)</label>
+        <textarea id="reportBody" class="modal-textarea"></textarea>
+      </div>
+      <p class="report-status" id="reportStatus"></p>
     </div>
     <div class="modal-foot">
-      <button class="copy-btn" id="copyMaintBtn" onclick="copyMaintList()">Copy to clipboard</button>
+      <button class="copy-btn" id="copyMaintBtn" onclick="copyMaintList()">Copy text</button>
+      <button class="generate" id="sendReportBtn" onclick="sendReportEmail()">Send to Facilities</button>
     </div>
   </div>
 </div>
@@ -1077,22 +1111,84 @@ async function savePDF(doc, filename){
 // Build a plain-text bulleted list of the maintenance items logged this session.
 // One bullet per logged issue; location is prefixed when present so the list is
 // useful pasted straight into an email.
-function buildMaintBullets(){
-  return maintRows
+const FACILITIES_EMAIL = "facilities@bigskylondon.com";
+
+function buildReportBullets(){
+  const bullets = [];
+
+  // Flagged building/communal items
+  BUILDINGS.forEach((b, bi) => {
+    const flagged = COMM_ITEMS
+      .map((item, i) => ({item, checked: document.getElementById(`b${bi}_i${i}`).checked}))
+      .filter(x => !x.checked)
+      .map(x => x.item.replace(/&amp;/g,"&"));
+    const notes = document.getElementById(`b${bi}_notes`).value.trim();
+    if(flagged.length){
+      bullets.push(`- ${b}: ${flagged.join(", ")}${notes ? ` (${notes})` : ""}`);
+    } else if(notes){
+      bullets.push(`- ${b}: ${notes}`);
+    }
+  });
+
+  // Flagged studio items
+  STUDIOS.forEach((s, si) => {
+    const flagged = STUDIO_ITEMS
+      .map((item, i) => ({item, checked: document.getElementById(`s${si}_i${i}`).checked}))
+      .filter(x => !x.checked)
+      .map(x => x.item.replace(/&amp;/g,"&"));
+    const notes = document.getElementById(`s${si}_notes`).value.trim();
+    if(flagged.length){
+      bullets.push(`- Studio ${s}: ${flagged.join(", ")}${notes ? ` (${notes})` : ""}`);
+    } else if(notes){
+      bullets.push(`- Studio ${s}: ${notes}`);
+    }
+  });
+
+  // This week's maintenance log entries
+  maintRows
     .filter(r => (r.location || r.issue || r.action))
-    .map(r => {
+    .forEach(r => {
       const loc = (r.location || "").trim();
       const issue = (r.issue || "").trim();
       const desc = loc && issue ? `${loc} — ${issue}` : (issue || loc || (r.action || "").trim());
-      return `- ${desc}`;
+      bullets.push(`- ${desc}`);
     });
+
+  return bullets;
 }
 
+function buildReportSubject(){
+  const weekCommencing = document.getElementById("weekCommencing").value;
+  return `Weekly Facilities & H&S Walkaround — w/c ${fmtDisplay(weekCommencing) || todayISO()}`;
+}
+
+function buildReportBody(bullets){
+  const completedBy = document.getElementById("completedBy").value || "-";
+  const weekCommencing = document.getElementById("weekCommencing").value;
+  const intro = `Hi team,\n\nHere's this week's facilities & H&S walkaround (w/c ${fmtDisplay(weekCommencing)}, completed by ${completedBy}).\n\n`;
+  const listSection = bullets.length
+    ? `Items flagged / to be aware of:\n\n${bullets.join("\n")}\n\n`
+    : `Everything checked out fine this week — no issues to report.\n\n`;
+  const outro = `Full checklist attached as a PDF.\n\nThanks,\n${completedBy}`;
+  return intro + listSection + outro;
+}
+
+let lastReportPdfBase64 = null;
+let lastReportFilename = null;
+
 function showMaintModal(bullets){
-  document.getElementById("maintListText").textContent = bullets.join("\n");
+  document.getElementById("reportTo").value = FACILITIES_EMAIL;
+  document.getElementById("reportSubject").value = buildReportSubject();
+  document.getElementById("reportBody").value = buildReportBody(bullets);
   const copyBtn = document.getElementById("copyMaintBtn");
-  copyBtn.textContent = "Copy to clipboard";
+  copyBtn.textContent = "Copy text";
   copyBtn.classList.remove("copied");
+  const status = document.getElementById("reportStatus");
+  status.textContent = "";
+  status.className = "report-status";
+  const sendBtn = document.getElementById("sendReportBtn");
+  sendBtn.disabled = false;
+  sendBtn.textContent = "Send to Facilities";
   document.getElementById("maintModal").classList.add("open");
 }
 
@@ -1101,7 +1197,7 @@ function closeMaintModal(){
 }
 
 async function copyMaintList(){
-  const text = document.getElementById("maintListText").textContent;
+  const text = document.getElementById("reportBody").value;
   const copyBtn = document.getElementById("copyMaintBtn");
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -1122,6 +1218,60 @@ async function copyMaintList(){
     copyBtn.classList.add("copied");
   } catch (err) {
     copyBtn.textContent = "Copy failed — select and copy manually";
+  }
+}
+
+async function sendReportEmail(){
+  const btn = document.getElementById("sendReportBtn");
+  const status = document.getElementById("reportStatus");
+  const to = document.getElementById("reportTo").value.trim();
+  const subject = document.getElementById("reportSubject").value.trim();
+  const body = document.getElementById("reportBody").value.trim();
+
+  if(!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){
+    status.textContent = "Enter a valid email address to send to.";
+    status.className = "report-status err";
+    document.getElementById("reportTo").focus();
+    return;
+  }
+
+  if(!lastReportPdfBase64){
+    status.textContent = "No PDF found for this session — generate the PDF again first.";
+    status.className = "report-status err";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Sending…";
+  status.textContent = "";
+  status.className = "report-status";
+
+  try {
+    const res = await fetch(MAINT_API_URL, {
+      method:"POST",
+      headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify({
+        action: "sendReport",
+        to: to,
+        subject: subject,
+        body: body,
+        pdfBase64: lastReportPdfBase64,
+        filename: lastReportFilename
+      })
+    });
+    const data = await res.json();
+    if(data && data.success){
+      status.textContent = `Sent to ${to} ✓`;
+      status.className = "report-status ok";
+      btn.textContent = "Sent ✓";
+    } else {
+      throw new Error((data && data.error) || "Unknown error");
+    }
+  } catch(e){
+    status.textContent = "Couldn't send — check your connection and try again.";
+    status.className = "report-status err";
+    btn.disabled = false;
+    btn.textContent = "Send to Facilities";
   }
 }
 
@@ -1324,12 +1474,16 @@ async function generatePDF(){
     const filename = `Facilities-Checklist-${weekCommencing || todayISO()}.pdf`;
     await savePDF(doc, filename);
 
-    // After export, offer a copyable bullet list of the logged maintenance
-    // items — but only if there's actually something logged this week.
-    const bullets = buildMaintBullets();
-    if(bullets.length > 0){
-      showMaintModal(bullets);
-    }
+    // Capture the PDF for the "email the team" step below — reusing the same
+    // doc instance rather than regenerating it, so what's attached to the
+    // email is exactly what was just downloaded/shared.
+    lastReportPdfBase64 = doc.output("datauristring").split(",")[1];
+    lastReportFilename = filename;
+
+    // Offer to draft + send a summary to facilities — includes flagged
+    // checklist items and this week's maintenance log, or an all-clear note.
+    const bullets = buildReportBullets();
+    showMaintModal(bullets);
   } catch(err){
     console.error(err);
     alert("Something went wrong generating the PDF:\n\n" + err.message);
@@ -1550,6 +1704,21 @@ function switchView(view){
   }
 }
 
+function toggleSnagAddForm(){
+  const card = document.getElementById("snagAddCard");
+  const btn = document.getElementById("snagAddToggleBtn");
+  const opening = card.style.display === "none";
+  card.style.display = opening ? "" : "none";
+  btn.textContent = opening ? "− Close" : "+ Add item";
+  if(opening){
+    prefillAddedBy();
+    document.getElementById("snagAddMsg").textContent = "";
+    document.getElementById("snagAddMsg").className = "snag-add-msg";
+    card.scrollIntoView({behavior:"smooth", block:"start"});
+    setTimeout(() => document.getElementById("snagItem").focus(), 250);
+  }
+}
+
 async function loadSnagList(){
   snagItems = null;
   snagError = false;
@@ -1626,6 +1795,10 @@ async function addSnagItem(){
     notesEl.value = "";
     msg.textContent = "Added to the list ✓";
     msg.className = "snag-add-msg ok";
+    setTimeout(() => {
+      toggleSnagAddForm();
+      document.getElementById("snagOpenContainer").scrollIntoView({behavior:"smooth", block:"start"});
+    }, 900);
   } else {
     msg.textContent = "Couldn't confirm it was added — check your connection and tap Refresh.";
     msg.className = "snag-add-msg err";
