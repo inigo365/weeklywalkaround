@@ -588,6 +588,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   }
   button.generate:hover{background:var(--navy-light);}
   button.generate:disabled{opacity:0.6;cursor:wait;}
+  button.generate.secondary{
+    background:#fff;color:var(--navy);border:1.5px solid var(--navy);
+    box-shadow:none;margin-top:10px;
+  }
+  button.generate.secondary:hover{background:var(--bg);}
 
   /* Copyable maintenance bullet list modal */
   .modal-overlay{
@@ -797,6 +802,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
   <div class="generate-bar">
     <button class="generate" id="genBtn" onclick="generatePDF()">Generate PDF</button>
+    <button class="generate secondary" id="emailReportBtn" onclick="openEmailReport()">Send Email</button>
   </div>
   <p class="foot-note">Downloads straight to your device — drag it into the shared Drive folder afterwards.</p>
   <div class="reset-link"><button onclick="resetForm()">Reset this week's form</button></div>
@@ -1268,30 +1274,31 @@ async function sendReportEmail(){
       throw new Error((data && data.error) || "Unknown error");
     }
   } catch(e){
-    status.textContent = "Couldn't send — check your connection and try again.";
+    console.error("sendReportEmail failed:", e);
+    // Surface the real reason where possible — "Unknown action" usually means
+    // the Apps Script backend hasn't been redeployed with the sendReport
+    // action yet; other messages come straight from Google's error.
+    status.textContent = e && e.message
+      ? `Couldn't send: ${e.message}`
+      : "Couldn't send — check your connection and try again.";
     status.className = "report-status err";
     btn.disabled = false;
     btn.textContent = "Send to Facilities";
   }
 }
 
-async function generatePDF(){
-  const btn = document.getElementById("genBtn");
-  btn.disabled = true;
-  btn.textContent = "Generating...";
+function buildChecklistDoc(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm", format:"a4"});
+  const margin = 14;
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let y = 14;
 
-  try{
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({unit:"mm", format:"a4"});
-    const margin = 14;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let y = 14;
-
-    const rightX = pageWidth - margin;
-    const weekCommencing = document.getElementById("weekCommencing").value;
-    const completedBy = document.getElementById("completedBy").value || "-";
-    const signDate = document.getElementById("signDate").value;
-    const nextWalkaround = document.getElementById("nextWalkaround").value;
+  const rightX = pageWidth - margin;
+  const weekCommencing = document.getElementById("weekCommencing").value;
+  const completedBy = document.getElementById("completedBy").value || "-";
+  const signDate = document.getElementById("signDate").value;
+  const nextWalkaround = document.getElementById("nextWalkaround").value;
 
     // Logo, top-left — same Big Sky wordmark and house style as the
     // compliance app's PDFs, so records look consistent across tools.
@@ -1472,24 +1479,48 @@ async function generatePDF(){
     doc.setTextColor(0);
 
     const filename = `Facilities-Checklist-${weekCommencing || todayISO()}.pdf`;
+
+    return { doc, filename };
+}
+
+async function generatePDF(){
+  const btn = document.getElementById("genBtn");
+  btn.disabled = true;
+  btn.textContent = "Generating...";
+
+  try{
+    const { doc, filename } = buildChecklistDoc();
     await savePDF(doc, filename);
-
-    // Capture the PDF for the "email the team" step below — reusing the same
-    // doc instance rather than regenerating it, so what's attached to the
-    // email is exactly what was just downloaded/shared.
-    lastReportPdfBase64 = doc.output("datauristring").split(",")[1];
-    lastReportFilename = filename;
-
-    // Offer to draft + send a summary to facilities — includes flagged
-    // checklist items and this week's maintenance log, or an all-clear note.
-    const bullets = buildReportBullets();
-    showMaintModal(bullets);
   } catch(err){
     console.error(err);
     alert("Something went wrong generating the PDF:\n\n" + err.message);
   } finally {
     btn.disabled = false;
     btn.textContent = "Generate PDF";
+  }
+}
+
+async function openEmailReport(){
+  const btn = document.getElementById("emailReportBtn");
+  btn.disabled = true;
+  btn.textContent = "Preparing…";
+
+  try{
+    const { doc, filename } = buildChecklistDoc();
+
+    // Build quietly in memory for the attachment — no share sheet or
+    // download triggered here, this button is purely about the email.
+    lastReportPdfBase64 = doc.output("datauristring").split(",")[1];
+    lastReportFilename = filename;
+
+    const bullets = buildReportBullets();
+    showMaintModal(bullets);
+  } catch(err){
+    console.error(err);
+    alert("Something went wrong preparing the report:\n\n" + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Send Email";
   }
 }
 
