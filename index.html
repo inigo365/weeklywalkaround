@@ -1315,7 +1315,7 @@ function buildReportBody(bullets){
   const weekCommencing = document.getElementById("weekCommencing").value;
   const intro = `Hi team,\n\nHere's this week's facilities & H&S walkaround (w/c ${fmtDisplay(weekCommencing)}, completed by ${completedBy}).\n\n`;
   const listSection = bullets.length
-    ? `Items flagged / to be aware of:\n\n${bullets.map(b => `- ${b.title}` + (b.notes ? `\n  ${b.notes}` : "")).join("\n")}\n\n`
+    ? `Items flagged / to be aware of:\n\n${bullets.map(b => `- ${b.title}` + (b.notes ? `\n  ${b.notes}` : "")).join("\n\n")}\n\n`
     : `Everything checked out fine this week — no issues to report.\n\n`;
   const outro = `Full checklist attached as a PDF.\n\nBest,`;
   return intro + listSection + outro;
