@@ -723,7 +723,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     margin-bottom:10px;background:#fafbfc;
   }
   .snag-item:last-child{margin-bottom:0;}
-  .snag-item-desc{font-size:0.9rem;font-weight:600;line-height:1.35;margin-bottom:8px;}
+  .snag-desc-input{
+    width:100%;padding:8px 10px;margin-bottom:10px;
+    border:1px solid var(--border);border-radius:6px;font-size:0.9rem;font-weight:600;
+    font-family:inherit;background:#fff;box-sizing:border-box;
+  }
   .snag-note{
     width:100%;min-height:40px;resize:vertical;padding:8px 10px;
     border:1px solid var(--border);border-radius:6px;font-size:0.88rem;font-family:inherit;background:#fff;
@@ -1052,9 +1056,29 @@ function updateSectionStatus(kind){
 }
 
 function removeMaintRow(id){
+  if(!confirm("Remove this item from this week's list? This only removes it from this week's checklist/PDF — if it already synced to the shared Maintenance List, it'll stay there until resolved from that tab.")) return;
   maintRows = maintRows.filter(r => r.id !== id);
   renderMaintRows();
   saveStateNow();
+}
+
+const maintRowSyncTimers = {};
+function updateMaintRowField(id, field, value){
+  const row = maintRows.find(r => r.id === id);
+  if(!row) return;
+  row[field] = value;
+  saveStateNow();
+
+  // If this item made it onto the shared sheet when it was added, keep that
+  // copy in sync too (debounced, same pattern as the Maintenance List tab).
+  if(row.sheetId){
+    clearTimeout(maintRowSyncTimers[id]);
+    maintRowSyncTimers[id] = setTimeout(() => {
+      const action = field === "issue" ? "updateItem" : "updateNotes";
+      const body = field === "issue" ? {id: row.sheetId, item: value} : {id: row.sheetId, notes: value};
+      postSnag({action, ...body}).catch(() => {});
+    }, 500);
+  }
 }
 
 function renderMaintRows(){
@@ -1066,11 +1090,13 @@ function renderMaintRows(){
   container.innerHTML = maintRows.map(r => `
     <div class="maint-row">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
-        <div style="min-width:0;">
-          <div style="font-weight:700;font-size:0.88rem;color:var(--navy);">${snagEscape(r.location || "Unassigned")}</div>
-          <div style="font-size:0.85rem;margin-top:2px;">${snagEscape(r.issue || "")}</div>
-          ${r.notes ? `<div style="font-size:0.8rem;color:var(--grey);margin-top:2px;">${snagEscape(r.notes)}</div>` : ""}
-          ${r.addedBy ? `<div style="font-size:0.76rem;color:var(--grey);margin-top:4px;">Added by ${snagEscape(r.addedBy)}</div>` : ""}
+        <div style="min-width:0;flex:1;">
+          <div style="font-weight:700;font-size:0.82rem;color:var(--navy);margin-bottom:6px;">${snagEscape(r.location || "Unassigned")}</div>
+          <input type="text" class="snag-desc-input" style="margin-bottom:8px;" value="${snagEscape(r.issue || "")}"
+            oninput="updateMaintRowField(${r.id},'issue',this.value)" placeholder="What needs doing">
+          <textarea class="snag-note" placeholder="Notes"
+            oninput="updateMaintRowField(${r.id},'notes',this.value)">${snagEscape(r.notes || "")}</textarea>
+          ${r.addedBy ? `<div style="font-size:0.76rem;color:var(--grey);margin-top:6px;">Added by ${snagEscape(r.addedBy)}</div>` : ""}
         </div>
         <button class="remove-btn" style="flex:0 0 auto;" onclick="removeMaintRow(${r.id})">Remove</button>
       </div>
@@ -1122,8 +1148,9 @@ async function addChecklistMaintItem(){
   // PDF/email just because of a bad connection — it'll just need adding to
   // the shared list separately if the POST didn't land.
   let synced = false;
+  let sheetId = null;
   try {
-    await postSnag({
+    const res = await postSnag({
       action:"add",
       building: loc.building,
       space: loc.space,
@@ -1131,11 +1158,14 @@ async function addChecklistMaintItem(){
       notes: notes,
       addedBy: addedBy
     });
+    const data = await res.json();
+    if(data && data.id) sheetId = data.id;
     synced = true;
   } catch(e){ /* still add locally below */ }
 
   maintRows.push({
     id: maintIdCounter++,
+    sheetId: sheetId,
     location: wantLabel,
     issue: item,
     notes: notes,
@@ -1241,9 +1271,9 @@ function buildReportBullets(){
       .map(x => x.item.replace(/&amp;/g,"&"));
     const notes = document.getElementById(`b${bi}_notes`).value.trim();
     if(flagged.length){
-      bullets.push(`- ${b}: ${flagged.join(", ")}${notes ? ` (${notes})` : ""}`);
+      bullets.push({title: `${b}: ${flagged.join(", ")}`, notes});
     } else if(notes){
-      bullets.push(`- ${b}: ${notes}`);
+      bullets.push({title: `${b}: ${notes}`, notes: ""});
     }
   });
 
@@ -1255,9 +1285,9 @@ function buildReportBullets(){
       .map(x => x.item.replace(/&amp;/g,"&"));
     const notes = document.getElementById(`s${si}_notes`).value.trim();
     if(flagged.length){
-      bullets.push(`- Studio ${s}: ${flagged.join(", ")}${notes ? ` (${notes})` : ""}`);
+      bullets.push({title: `Studio ${s}: ${flagged.join(", ")}`, notes});
     } else if(notes){
-      bullets.push(`- Studio ${s}: ${notes}`);
+      bullets.push({title: `Studio ${s}: ${notes}`, notes: ""});
     }
   });
 
@@ -1268,8 +1298,8 @@ function buildReportBullets(){
       const loc = (r.location || "").trim();
       const issue = (r.issue || "").trim();
       const notes = (r.notes || "").trim();
-      const desc = loc && issue ? `${loc} — ${issue}` : (issue || loc || (r.action || "").trim());
-      bullets.push(`- ${desc}${notes ? ` (${notes})` : ""}`);
+      const title = loc && issue ? `${loc} — ${issue}` : (issue || loc || (r.action || "").trim());
+      bullets.push({title, notes});
     });
 
   return bullets;
@@ -1285,10 +1315,27 @@ function buildReportBody(bullets){
   const weekCommencing = document.getElementById("weekCommencing").value;
   const intro = `Hi team,\n\nHere's this week's facilities & H&S walkaround (w/c ${fmtDisplay(weekCommencing)}, completed by ${completedBy}).\n\n`;
   const listSection = bullets.length
-    ? `Items flagged / to be aware of:\n\n${bullets.join("\n")}\n\n`
+    ? `Items flagged / to be aware of:\n\n${bullets.map(b => `- ${b.title}` + (b.notes ? `\n  ${b.notes}` : "")).join("\n")}\n\n`
     : `Everything checked out fine this week — no issues to report.\n\n`;
   const outro = `Full checklist attached as a PDF.\n\nBest,`;
   return intro + listSection + outro;
+}
+
+// Builds a rich HTML version from the (possibly hand-edited) plain-text body,
+// so what's bolded always matches what the person actually sent. Lines
+// starting with "- " (a bullet title) render bold; every other line —
+// including the indented notes line under each bullet — renders as regular
+// text. Falls back gracefully if the person restructures the text entirely.
+function buildReportHtmlFromPlain(plainText){
+  const lines = plainText.split("\n");
+  const htmlLines = lines.map(line => {
+    const escaped = snagEscape(line);
+    if(/^\s*-\s+/.test(line)){
+      return `<b>${escaped}</b>`;
+    }
+    return escaped || "&nbsp;";
+  });
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#111827;">${htmlLines.join("<br>")}</div>`;
 }
 
 let lastReportPdfBase64 = null;
@@ -1373,6 +1420,7 @@ async function sendReportEmail(){
         to: to,
         subject: subject,
         body: body,
+        htmlBody: buildReportHtmlFromPlain(body),
         pdfBase64: lastReportPdfBase64,
         filename: lastReportFilename
       })
@@ -2042,10 +2090,25 @@ function renderSnagItem(it){
   const wrap = document.createElement("div");
   wrap.className = "snag-item";
 
-  const desc = document.createElement("div");
-  desc.className = "snag-item-desc";
-  desc.textContent = it.Item || "(no description)";
-  wrap.appendChild(desc);
+  const descLabel = document.createElement("label");
+  descLabel.className = "snag-note-label";
+  descLabel.textContent = "What needs doing";
+  wrap.appendChild(descLabel);
+
+  const descInput = document.createElement("input");
+  descInput.type = "text";
+  descInput.className = "snag-desc-input";
+  descInput.value = it.Item || "";
+  descInput.placeholder = "Description";
+  let descTimer = null;
+  descInput.oninput = () => {
+    const val = descInput.value;
+    clearTimeout(descTimer);
+    descTimer = setTimeout(() => {
+      postSnag({action:"updateItem", id: it.ID, item: val}).catch(() => {});
+    }, 500);
+  };
+  wrap.appendChild(descInput);
 
   const noteLabel = document.createElement("label");
   noteLabel.className = "snag-note-label";
